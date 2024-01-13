@@ -1,3 +1,5 @@
 AffectiveROAD_Dataset
 Processed_Dataset
 Models
+api/__pycache__
+api/.venv
