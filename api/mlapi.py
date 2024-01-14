@@ -1,94 +1,88 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
 import pickle
+from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import pandas as pd
-import numpy as np
-from tqdm import tqdm
-from scipy.stats import skew, kurtosis
-from scipy.signal import find_peaks
-from sklearn.preprocessing import MinMaxScaler
+import datetime as dt
+
+from feature_extraction import get_X_r
+
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173/"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 class StressItem(BaseModel):
     Temperature: float
-    HR: int
-    GSR: int
+    HR: float
+    GSR: float
 
-with open('Regressor_Date_Time_2024_01_13.pkl', 'rb') as f:
+with open('stress-model-regressor.pkl', 'rb') as f:
     model = pickle.load(f)
 
-def statistical_features(arr):
-    vmin = np.amin(arr)
-    vmax = np.amax(arr)
-    mean = np.mean(arr)
-    std = np.std(arr)
-    return vmin, vmax, mean, std
 
-def shape_features(arr):
-    skewness = skew(arr)
-    kurt = kurtosis(arr)
-    return skewness, kurt
-
-def calculate_rms(signal):
-    diff_squared = np.square(np.ediff1d(signal))
-    rms_value = np.sqrt(np.mean(diff_squared))
-    return rms_value
-
-def generate_lag_features(input_df, columns, lags):
-    cols = list(map(str, range(len(columns) * len(lags), 0, -1)))
-    lag_df = pd.DataFrame(columns=cols)
-
-    index = len(columns) * len(lags)
-
-    for col in tqdm(columns, desc="Generating lag features", leave=True):
-        for lag in tqdm(lags, desc=f"Lag features for {col}", leave=True):
-            lagged_column = f'{index}'
-            lag_df[lagged_column] = input_df[col].shift(lag)
-            index -= 1
-            
-    return lag_df
+@app.get('/')
+async def get_page():
+    return "okay"
 
 
-@app.post('/')
+# endpoint for sending single datapoint 
+@app.post('/single-data')
 async def test_endpoint(item: StressItem):
     # Extract features from the incoming data
     columns = ['EDA', 'HR', 'TEMP']
     df = pd.DataFrame([item.dict().values()], columns = columns)
+
+    # Duplicate the row 10 times
+    df = pd.concat([df] * 10, ignore_index=True)    
     print(df)
 
-    cols = [
-        'EDA_Mean', 'EDA_Min', 'EDA_Max', 'EDA_Std', 'EDA_Kurtosis', 'EDA_Skew', 'EDA_Num_Peaks', 'EDA_Amplitude', 'EDA_Duration',
-        'HR_Mean', 'HR_Min', 'HR_Max', 'HR_Std', 'HR_RMS', 'TEMP_Mean', 'TEMP_Min', 'TEMP_Max', 'TEMP_Std'
-    ]
+    X_r = get_X_r(df)
 
-    eda = df['EDA'].values
-    hr = df['HR'].values
-    temp = df['TEMP'].values
+    prediction = model.predict(X_r) # pass the df here
+    print(prediction)
 
-    df_features = pd.DataFrame(columns=cols)
-    index = 0
+    return {"prediction": prediction[0]}
 
-    eda_min, eda_max, eda_mean, eda_std = statistical_features(eda)
-    hr_min, hr_max, hr_mean, hr_std = statistical_features(hr)
-    temp_min, temp_max, temp_mean, temp_std = statistical_features(temp)
-    eda_skew, eda_kurtosis = shape_features(eda)
-    
-    hr_rms = calculate_rms(hr)
-    temp_rms = calculate_rms(temp)
+@app.post('/csv')
+def predict_from_csv(csv: UploadFile = File(...)):
+    df_csv = pd.read_csv(csv.file)
 
-    peaks, properties = find_peaks(eda, width=5)
-    num_Peaks = len(peaks)
+    # Rename columns
+    df_csv.rename(columns={
+        'Object Temperature(C)': 'TEMP',
+        'Heart Rate Ear(BPM)': 'HR',
+        'GSR': 'EDA'
+    }, inplace=True)
 
-    prominences = np.array(properties['prominences'])
-    widths = np.array(properties['widths'])
-    amplitude = np.sum(prominences)
-    duration = np.sum(widths)
+    # Create a new DataFrame with selected columns
+    selected_columns = ['TEMP', 'HR', 'EDA']
+    df = df_csv[selected_columns]
 
-    
+    csv.file.close()
+    print(df)
 
-    prediction = model.predict() # pass the df here
+    X_r = get_X_r(df)
 
-    return {"prediction": prediction}
+    prediction = model.predict(X_r) # pass the df here
+
+    # Concatenate X_r and prediction into a DataFrame
+    result_df = pd.concat([X_r, pd.DataFrame({'Prediction': prediction})], axis=1)
+
+    # Save the result DataFrame to a CSV file
+    date_format = '%Y_%m_%d'  # Format for extracting only the date
+    current_date_time_dt = dt.datetime.now()  # Current Date and Time in a DateTime Object.
+    current_date_string = dt.datetime.strftime(current_date_time_dt, date_format) 
+
+    result_csv_filename = f'result_{current_date_string}.csv'
+    result_df.to_csv(result_csv_filename, index=False)
+
+    return {"prediction": prediction[0]}
 
 
