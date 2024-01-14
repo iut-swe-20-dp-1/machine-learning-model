@@ -5,13 +5,13 @@ from pydantic import BaseModel
 import pandas as pd
 import datetime as dt
 
-from feature_extraction import get_X_r
+from api.feature_extraction import get_X_r
 
 
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173/"],
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -23,7 +23,7 @@ class StressItem(BaseModel):
     HR: float
     GSR: float
 
-with open('stress-model-regressor.pkl', 'rb') as f:
+with open('api/stress-model-regressor.pkl', 'rb') as f:
     model = pickle.load(f)
 
 
