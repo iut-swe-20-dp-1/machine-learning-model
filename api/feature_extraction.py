@@ -5,6 +5,19 @@ from scipy.stats import skew, kurtosis
 from scipy.signal import find_peaks
 from sklearn.preprocessing import MinMaxScaler
 
+# Convert GSR to EDA
+def calculate_eda_value(gsr_value):
+    Serial_Port_Reading = gsr_value
+    resistance = ((1024 + 2 * Serial_Port_Reading) * 10000) / (512 - Serial_Port_Reading)
+    eda_value = (1 / resistance) * 1e6
+    return eda_value
+
+def preprocess_df(df):
+    combined_df_original = df
+    preprocessed_df = combined_df_original[combined_df_original['HR'] != 0]
+    preprocessed_df['EDA'] = preprocessed_df['EDA'].apply(calculate_eda_value)
+    return preprocessed_df
+
 def statistical_features(arr):
     vmin = np.amin(arr)
     vmax = np.amax(arr)
@@ -76,6 +89,8 @@ def generate_lag_features(input_df, columns, lags):
             # Convert input_df to DataFrame and access the column
             lag_df[lagged_column] = pd.DataFrame(input_df)[col].shift(lag)
             index -= 1
+    
+    lag_df = lag_df.fillna(0)
             
     return lag_df
 
@@ -87,9 +102,10 @@ def scale_features(df_total, feature_columns):
     return scaled_df
 
 def get_X_r(df):
-    df_features = extract_features(df)
-
+    df_features = preprocess_df(df)
+    
     print(df_features)
+    df_features = extract_features(df_features)
 
     cols = ['HR_Mean', 'TEMP_Mean', 'EDA_Mean']
     lags = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
