@@ -4,7 +4,7 @@
 This repository contains the code for a machine learning project that aims to generate a stress score and a stress class using 3 physiological data readings (HR, TEMP, EDA). The project utilizes pandas, scikit-learn and 2 RandomForest models (one Classifier and one Regressor) for building and training machine learning models.
 
 ## Table of Contents
-- [Environment Setup](#environment setup)
+- [Environment](#environment)
 - [Installation](#installation)
 - [Dataset](#dataset)
 - [Models](#models)
@@ -13,7 +13,7 @@ This repository contains the code for a machine learning project that aims to ge
 - [License](#license)
 - [Contributors](#contributors)
 
-## Environment Setup
+## Environment
    - Ensure you have a Python 3.x environment set up on your machine.
    - Make sure to download the dataset and setup the folder structure provided above.
 
