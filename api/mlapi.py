@@ -1,10 +1,12 @@
 import pickle
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import pandas as pd
-import datetime as dt
-
+import numpy as np
+import io
 from api.feature_extraction import get_X_r
 
 
@@ -24,12 +26,16 @@ class StressItem(BaseModel):
     GSR: float
 
 with open('api/stress-model-regressor.pkl', 'rb') as f:
-    model = pickle.load(f)
+    model1 = pickle.load(f)
+
+with open('api/stress-classifier-model.pkl', 'rb') as f:
+    model2 = pickle.load(f)
 
 
 @app.get('/')
 async def get_page():
     return "okay"
+
 
 
 # endpoint for sending single datapoint 
@@ -40,49 +46,75 @@ async def test_endpoint(item: StressItem):
     df = pd.DataFrame([item.dict().values()], columns = columns)
 
     # Duplicate the row 10 times
-    df = pd.concat([df] * 10, ignore_index=True)    
+    df = pd.concat([df] * 40, ignore_index=True)    
     print(df)
 
     X_r = get_X_r(df)
 
-    prediction = model.predict(X_r) # pass the df here
+    prediction = model1.predict(X_r) # pass the df here
     print(prediction)
 
     return {"prediction": prediction[0]}
 
+
 @app.post('/csv')
-def predict_from_csv(csv: UploadFile = File(...)):
-    df_csv = pd.read_csv(csv.file)
+async def predict_from_csv(csv: UploadFile = File(...)):
+    try:
+        print("hereeeeeees")
 
-    # Rename columns
-    df_csv.rename(columns={
-        'Object Temperature(C)': 'TEMP',
-        'Heart Rate Ear(BPM)': 'HR',
-        'GSR': 'EDA'
-    }, inplace=True)
+        # Check file extension
+        file_extension = csv.filename.split('.')[-1].lower()
 
-    # Create a new DataFrame with selected columns
-    selected_columns = ['TEMP', 'HR', 'EDA']
-    df = df_csv[selected_columns]
+        # Read data based on the file extension
+        if file_extension == 'csv':
+            df_csv = pd.read_csv(csv.file)
+        elif file_extension in ['xlsx', 'xls']:
+            print("detected xlsx or xls")
+            # df_csv = pd.read_excel(csv.file)
+            excel_content = io.BytesIO(csv.file.read())
+            df_csv = pd.read_excel(excel_content)
+        else:
+            return {"ok": False, "message": "Inappropriate file extension"}
 
-    csv.file.close()
-    print(df)
+        # Rename columns
+        df_csv.rename(columns={
+            'Object Temperature(C)': 'TEMP',
+            'Heart Rate Ear(BPM)': 'HR',
+            'GSR': 'EDA'
+        }, inplace=True)
 
-    X_r = get_X_r(df)
+        # Create a new DataFrame with selected columns
+        selected_columns = ['TEMP', 'HR', 'EDA']
+        df = df_csv[selected_columns]
 
-    prediction = model.predict(X_r) # pass the df here
+        csv.file.close()
+        print(df)
 
-    # Concatenate X_r and prediction into a DataFrame
-    result_df = pd.concat([X_r, pd.DataFrame({'Prediction': prediction})], axis=1)
+        X_r = get_X_r(df)
 
-    # Save the result DataFrame to a CSV file
-    date_format = '%Y_%m_%d'  # Format for extracting only the date
-    current_date_time_dt = dt.datetime.now()  # Current Date and Time in a DateTime Object.
-    current_date_string = dt.datetime.strftime(current_date_time_dt, date_format) 
+        prediction = model1.predict(X_r)  # pass the df here
+        average_prediction = np.mean(prediction)
 
-    result_csv_filename = f'result_{current_date_string}.csv'
-    result_df.to_csv(result_csv_filename, index=False)
+        classification = model2.predict(X_r)
+        rounded_classification = round(np.mean(classification))
 
-    return {"prediction": prediction[0]}
+        # Mapping dictionary for stress levels
+        stress_mapping = {
+            0: 'Low',
+            1: 'Medium',
+            2: 'High'
+        }
+
+        # Lookup the stress level based on the rounded classification
+        stress_level = stress_mapping.get(rounded_classification, 'Unknown Stress Level')
+
+        print(average_prediction)
+        print(stress_level)
+
+        return {"prediction": float(average_prediction), "classification": stress_level}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Oh no, something went wrong!")
+
 
 
