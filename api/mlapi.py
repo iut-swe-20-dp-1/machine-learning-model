@@ -75,6 +75,7 @@ async def predict_from_csv(csv: UploadFile = File(...)):
             df_csv = pd.read_excel(excel_content)
         else:
             return {"ok": False, "message": "Inappropriate file extension"}
+        print("File read.")
 
         # Rename columns
         df_csv.rename(columns={
@@ -86,9 +87,8 @@ async def predict_from_csv(csv: UploadFile = File(...)):
         # Create a new DataFrame with selected columns
         selected_columns = ['TEMP', 'HR', 'EDA']
         df = df_csv[selected_columns]
-
+        
         csv.file.close()
-        print(df)
 
         X_r = get_X_r(df)
 
@@ -96,6 +96,7 @@ async def predict_from_csv(csv: UploadFile = File(...)):
         average_prediction = np.mean(prediction)
 
         classification = model2.predict(X_r)
+        print(prediction)
         rounded_classification = round(np.mean(classification))
 
         # Mapping dictionary for stress levels
