@@ -8,7 +8,10 @@ import pandas as pd
 import numpy as np
 import io
 from api.feature_extraction import get_X_r
-
+from api.web_scrapping import get_results
+import os
+import serpapi
+from dotenv import load_dotenv
 
 app = FastAPI()
 app.add_middleware(
@@ -18,7 +21,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 class StressItem(BaseModel):
     Temperature: float
@@ -117,5 +119,27 @@ async def predict_from_csv(csv: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Oh no, something went wrong!")
 
+@app.get('/get-suggestions')
+async def get_suggestions():
+    try:
+        print("hereeeeeees")
+        
+        keyword = "Ways to relieve academic stress"
+        #apiKey = os.getenv('SERPAPI_KEY')
+        client = serpapi.Client(api_key='9409b23e7455a9cc1a233abbbba6ab7f2176e927cad4f1c34f38bda644bbf6eb')
+
+        result = client.search(
+            q=keyword,
+            engine="google",
+            location="Austin, Texas",
+            hl="en",
+            gl="us",
+        )
+
+        return result["organic_results"]
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Oh no, something went wrong!")
+        
 
 
