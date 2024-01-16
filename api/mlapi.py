@@ -114,7 +114,7 @@ async def predict_from_csv(csv: UploadFile = File(...)):
         print(average_prediction)
         print(stress_level)
 
-        return {"prediction": float(average_prediction), "classification": stress_level}
+        return {"prediction": float(average_prediction*10), "classification": stress_level}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail="Oh no, something went wrong!")
