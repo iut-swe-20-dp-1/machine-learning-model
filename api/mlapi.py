@@ -8,10 +8,10 @@ import pandas as pd
 import numpy as np
 import io
 from api.feature_extraction import get_X_r
-from api.web_scrapping import get_results
 import os
 import serpapi
 from dotenv import load_dotenv
+from serpapi import GoogleSearch
 
 app = FastAPI()
 app.add_middleware(
@@ -141,5 +141,29 @@ async def get_suggestions():
         print(e)
         raise HTTPException(status_code=500, detail="Oh no, something went wrong!")
         
+@app.get('/work')
+async def work():
+    try:
+        print("hereeeeeees")
+        
+        params = {
+            "api_key": "9409b23e7455a9cc1a233abbbba6ab7f2176e927cad4f1c34f38bda644bbf6eb",
+            "engine": "google",
+            "q": "ways to relieve academic stress",
+            "location": "Austin, Texas, United States",
+            "google_domain": "google.com",
+            "gl": "us",
+            "hl": "en",
+            "safe": "active"
+        }
 
+        search = GoogleSearch(params)
+        results = search.get_dict()
+        print(results["organic_results"])
+
+
+        return results["organic_results"]
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Oh no, something went wrong!")
 
